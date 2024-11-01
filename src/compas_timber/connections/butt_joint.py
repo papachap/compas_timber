@@ -128,9 +128,9 @@ class ButtJoint(Joint):
 
         """
         vertices = []
-        front_frame, back_frame = self.front_back_surface_main()
-        top_frame, bottom_frame = self.get_main_cutting_plane()
-        sides = self.side_surfaces_cross()
+        front_frame, back_frame = self.front_back_surface_main() #main beam
+        top_frame, bottom_frame = self.get_main_cutting_plane() #cross beam
+        sides = self.side_surfaces_cross() #cross beam
         for i, side in enumerate(sides):
             points = []
             for frame in [bottom_frame, top_frame]:
@@ -140,7 +140,7 @@ class ButtJoint(Joint):
                             Plane.from_frame(side), Plane.from_frame(frame), Plane.from_frame(fr)
                         )
                     )
-            pv = [subtract_vectors(pt, self.cross_beam.blank_frame.point) for pt in points]
+            pv = [subtract_vectors(pt, self.cross_beam.blank_frame.point) for pt in points] 
             dots = [dot_vectors(v, self.cross_beam.centerline.direction) for v in pv]
             dots, points = zip(*sorted(zip(dots, points)))
             min_pt, max_pt = points[0], points[-1]
