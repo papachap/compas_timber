@@ -383,10 +383,11 @@ class DovetailMortise(BTLxProcess):
 
         # calculate orientation
         orientation = cls._calculate_orientation(ref_side, frame)
+        print(orientation)
 
         # calclulate start_x and start_y
         start_x = cls._calculate_start_x(ref_side, ref_edge, frame)
-        start_y = abs(frame.point[2] - ref_side.point[2])
+        start_y = cls._calculate_start_y(ref_side, frame, orientation)
 
         # define angle
         angle = cls._calculate_angle(ref_side, frame, orientation)
@@ -444,14 +445,27 @@ class DovetailMortise(BTLxProcess):
         return start_x
 
     @staticmethod
+    def _calculate_start_y(ref_side, cutting_frame, orientation):
+        start_y = cutting_frame.point[2] - ref_side.point[2]
+        if orientation == OrientationType.START:
+            return -start_y
+        else:
+            return start_y
+
+    @staticmethod
     def _calculate_angle(ref_side, cutting_frame, orientation):
         # calculate the angle of the cut based on the ref_side, cutting_frame and orientation
         angle = abs(angle_vectors_signed(ref_side.xaxis, cutting_frame.xaxis, ref_side.normal, deg=True))
-        if orientation == OrientationType.START:
-            angle -= 90.0
+        print(angle)
+        if orientation == OrientationType.END:
+            angle = 90.0 - angle
+            # angle = -angle
+            # angle+=90.0
         else:
+            angle = 270.0 - angle
             angle = -angle
-            angle += 90.0
+            # angle += 90.0
+        print(angle)
         return angle
 
     ########################################################################

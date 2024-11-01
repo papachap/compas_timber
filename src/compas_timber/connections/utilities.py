@@ -106,7 +106,7 @@ def beam_ref_side_incidence_cross(beam_a, beam_b, ignore_ends=True):
     return ref_side_angles
 
 
-def beam_ref_side_incidence_with_vector(beam_b, vector, ignore_ends=True):
+def beam_ref_side_incidence_with_vector(beam_b, beam_a, vector, ignore_ends=True):
     """
     Returns a map of ref_side indices of beam_b and the angle of their normal with a given vector.
 
@@ -134,6 +134,17 @@ def beam_ref_side_incidence_with_vector(beam_b, vector, ignore_ends=True):
         A map of ref_side indices of beam_b and their respective angle with the given vector.
 
     """
+    # find the orientation of beam_a's centerline so that it's pointing outward of the joint
+    # find the closest end
+    p1x, _ = intersection_line_line(beam_a.centerline, beam_b.centerline)
+    if p1x is None:
+        raise ValueError("The two beams do not intersect with each other")
+
+    end, _ = beam_b.endpoint_closest_to_point(Point(*p1x))
+
+    if end == "end":
+        vector = vector * -1
+
     if ignore_ends:
         beam_b_ref_sides = beam_b.ref_sides[:4]
     else:
@@ -142,6 +153,7 @@ def beam_ref_side_incidence_with_vector(beam_b, vector, ignore_ends=True):
     ref_side_angles = {}
     for ref_side_index, ref_side in enumerate(beam_b_ref_sides):
         ref_side_angles[ref_side_index] = angle_vectors(vector, ref_side.normal)
+    print(ref_side_angles)
 
     return ref_side_angles
 

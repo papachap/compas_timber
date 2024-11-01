@@ -4,7 +4,7 @@ from compas_timber._fabrication import DovetailMortise
 from compas_timber._fabrication import DovetailTenon
 from compas_timber._fabrication.btlx_process import TenonShapeType
 from compas_timber.connections.utilities import beam_ref_side_incidence
-from compas_timber.connections.utilities import beam_ref_side_incidence_cross
+from compas_timber.connections.utilities import beam_ref_side_incidence_with_vector
 
 from .joint import BeamJoinningError
 from .joint import Joint
@@ -154,7 +154,10 @@ class TDovetailJoint(Joint):
 
     @property
     def main_beam_ref_side_index(self):
-        ref_side_dict = beam_ref_side_incidence_cross(self.main_beam, self.cross_beam, ignore_ends=True)
+        cross_vect = self.cross_beam.ref_sides[self.cross_beam_ref_side_index].normal.cross(
+            self.main_beam.centerline.direction
+        )
+        ref_side_dict = beam_ref_side_incidence_with_vector(self.main_beam, self.cross_beam, cross_vect, ignore_ends=True)
         ref_side_index = min(ref_side_dict, key=ref_side_dict.get)
         return ref_side_index
 
