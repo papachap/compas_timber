@@ -7,6 +7,7 @@ from compas.geometry import Line
 from compas.geometry import PlanarSurface
 from compas.geometry import Plane
 from compas.geometry import Rotation
+from compas.geometry import angle_vectors_signed
 from compas.geometry import distance_point_point
 from compas.geometry import intersection_line_plane
 from compas.geometry import is_point_behind_plane
@@ -388,10 +389,7 @@ class DovetailMortise(BTLxProcess):
         start_y = abs(frame.point[2] - ref_side.point[2])
 
         # define angle
-        if orientation == OrientationType.START:
-            angle -= 90.0
-        else:
-            angle += 90.0
+        angle = cls._calculate_angle(ref_side, frame, orientation)
 
         # define slope and inclination
         # TODO: In which cases do you want indiferent slope and inclination?
@@ -444,6 +442,17 @@ class DovetailMortise(BTLxProcess):
 
         start_x = distance_point_point(ref_side.point, point_start_x)
         return start_x
+
+    @staticmethod
+    def _calculate_angle(ref_side, cutting_frame, orientation):
+        # calculate the angle of the cut based on the ref_side, cutting_frame and orientation
+        angle = abs(angle_vectors_signed(ref_side.xaxis, cutting_frame.xaxis, ref_side.normal, deg=True))
+        if orientation == OrientationType.START:
+            angle -= 90.0
+        else:
+            angle = -angle
+            angle += 90.0
+        return angle
 
     ########################################################################
     # Class Methods
