@@ -1,17 +1,16 @@
 import math
 
-from compas.geometry import BrepTrimmingError
 from compas.geometry import Box
 from compas.geometry import Brep
+from compas.geometry import BrepTrimmingError
 from compas.geometry import Frame
 from compas.geometry import Line
 from compas.geometry import Plane
 from compas.geometry import Point
-from compas.geometry import Rotation
 from compas.geometry import Vector
 from compas.geometry import angle_vectors_signed
-from compas.geometry import distance_point_point
 from compas.geometry import distance_point_line
+from compas.geometry import distance_point_point
 from compas.geometry import intersection_line_plane
 from compas.geometry import intersection_plane_plane_plane
 from compas.geometry import is_point_behind_plane
