@@ -445,10 +445,14 @@ class DovetailMortise(BTLxProcess):
 
     @staticmethod
     def _calculate_start_y(ref_side, cutting_frame):
-        return abs(cutting_frame.point[2] - ref_side.point[2])
+        # calculate the start_y from the distance between the ref_side and the cutting frame in the y-axis direction of the ref_side
+        direction = ref_side.yaxis.unitized()
+        vector = cutting_frame.point - ref_side.point
+        return abs(vector.dot(direction))
 
     @staticmethod
     def _calculate_angle(ref_side, cutting_frame, orientation):
+        # calculate the angle of the cut based on the ref_side and cutting_frame
         if orientation == OrientationType.START:
             angle = angle_vectors_signed(ref_side.xaxis, -cutting_frame.xaxis, ref_side.normal, deg=True)
             return angle - 90.0
