@@ -9,6 +9,7 @@ from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import angle_vectors_signed
+from compas.geometry import angle_vectors
 from compas.geometry import distance_point_line
 from compas.geometry import distance_point_point
 from compas.geometry import intersection_line_plane
@@ -284,7 +285,7 @@ class Lap(BTLxProcess):
     ########################################################################
 
     @classmethod
-    def from_two_planes_and_beam(cls, planes, beam, length, depth, ref_side_index=0):
+    def from_two_planes_and_beam(cls, planes, beam, depth, ref_side_index=0):
         """Create a Lap instance from two planes and a beam. The planes should be parallel to each other and their normals should be facing in the opposite direction.
 
         Parameters
@@ -314,7 +315,7 @@ class Lap(BTLxProcess):
         ref_edge = Line.from_point_and_vector(ref_side.point, ref_side.xaxis)
 
         # calculate the orientation of the lap
-        orientation = OrientationType.START
+        orientation = cls._calculate_orientation(ref_side, planes[0])
 
         # find the intersection points of the planes with the reference edge and calculate the distances from the start of the beam
         x_distances = []
@@ -322,12 +323,12 @@ class Lap(BTLxProcess):
             if intersection_line_plane(ref_edge, plane) is None:
                 raise ValueError("One of the planes does not intersect with the beam.")
             intersection_point = Point(*intersection_line_plane(ref_edge, plane))
-            x_distance = distance_point_point(ref_edge.point, intersection_point)
-        x_distances.append(x_distance)
+            x_distance = distance_point_point(ref_side.point, intersection_point)
+            x_distances.append(x_distance)
 
-        # sort planes based on the distance of the intersection points from the start of the beam
-        sorted_pairs = sorted(zip(planes, x_distances), key=lambda pair: pair[1])
-        planes, x_distances = zip(*sorted_pairs)
+        # Sort planes and distances together based on the distances
+        reverse = False if orientation == OrientationType.END else True
+        x_distances, planes = zip(*sorted(zip(x_distances, planes), reverse=reverse))
 
         # calculate the start_x of the lap from the closest intersection point
         start_x = x_distances[0]
@@ -339,114 +340,54 @@ class Lap(BTLxProcess):
         angle = cls._calculate_angle(ref_side, planes[0], orientation)
         print(angle)
 
+        # calculate length
+        length = cls._calculate_length(planes, ref_side, ref_edge, depth)
+
         # define machining limits
         machining_limits = {
             "FaceLimitedFront": "no",
             "FaceLimitedBack": "no"
         }
 
-        print(length)
         return cls(orientation=orientation, start_x=start_x, angle=angle, length=length, width=width, depth=depth, machining_limits=machining_limits, ref_side_index=ref_side_index)
-
-
-    @classmethod
-    def from_two_beams(cls, main_beam, cross_beam, depth, ref_side_index=0):
-        """Create a Lap instance from two beams that intersect.
-
-        Parameters
-        ----------
-        main_beam : :class:`~compas_timber.elements.Beam`
-            The main beam that the Lap instance is applied to.
-        cross_beam : :class:`~compas_timber.elements.Beam`
-            The cross beam that intersects with the main beam.
-        depth : float
-            The depth of the lap.
-        ref_side_index : int, optional
-            The reference side index of the main_beam to be cut. Default is 0 (i.e. RS1).
-
-        Returns
-        -------
-        :class:`~compas_timber.fabrication.Lap`
-
-        """
-        # type: (Beam, Beam, float, int) -> Lap
-
-        # get ref_side and ref_edge of the main beam
-        main_ref_side = main_beam.ref_sides[ref_side_index]
-        ref_edge = Line.from_point_and_vector(main_ref_side.point, main_ref_side.xaxis)
-
-        # get the top corner points of the lap from the intersection of the two adjacent ref sides of the cross beam and the main ref side
-        intersection_points = []
-        for i in range(3):
-            int_pt = intersection_plane_plane_plane(main_ref_side, cross_beam.ref_sides[i], cross_beam.ref_sides[(i+1)%4])
-            if int_pt is None:
-                raise ValueError("Beams do not intersect.")
-            else:
-                intersection_points.append(Point(*int_pt))
-
-        # rotate the list of the intersection points so that the first point is the one closest to the start of the main beam
-        # find the closest point index
-        closest_index = min(
-        range(len(intersection_points)),
-        key=lambda idx: (
-            distance_point_line(intersection_points[idx], ref_edge),
-            distance_point_point(intersection_points[idx], main_ref_side.point)
-        )
-    )
-        intersection_points = intersection_points[closest_index:] + intersection_points[:closest_index]
-
-
-
-        # calculate the start_x and start_y of the lap
-        start_pt_vector = Vector.from_start_end(main_ref_side.point, intersection_points[0])
-        start_x = start_pt_vector.x
-        start_y = start_pt_vector.y
-
-        # calculate length and width of the lap
-        diagonal_vector = Vector.from_start_end(intersection_points[0], intersection_points[2])
-        length = diagonal_vector.x
-        width = diagonal_vector.y
-
-        # orientation = cls._calculate_orientation(ref_side, plane)
-
-        # point_start_x = intersection_line_plane(ref_edge, plane)
-        # if point_start_x is None:
-        #     raise ValueError("Plane does not intersect with beam.")
-
-        # start_x = distance_point_point(ref_edge.point, point_start_x)
-        # angle = cls._calculate_angle(ref_side, plane, orientation)
-        # inclination = cls._calculate_inclination(ref_side, plane, orientation)
-        # return cls(orientation, start_x, start_y, angle, inclination, slope, length, width, depth, ref_side_index=ref_side_index)
-        return NotImplementedError
 
     @staticmethod
     def _calculate_orientation(ref_side, cutting_plane):
-        # orientation is START if cutting plane normal points towards the start of the beam and END otherwise
-        # essentially if the start is being cut or the end
-        if is_point_behind_plane(ref_side.point, cutting_plane):
-            return OrientationType.END
-        else:
+        # orientation is START if the angle of
+        cross_vect = Vector.cross(ref_side.yaxis, cutting_plane.normal)
+        dot = cross_vect.dot(ref_side.normal)
+        if dot > 0:
+            cross_vect = -cross_vect
+        if angle_vectors(ref_side.xaxis, cross_vect, deg=True) > 90:
             return OrientationType.START
+        else:
+            return OrientationType.END
 
     @staticmethod
     def _calculate_angle(ref_side, plane, orientation):
         # vector rotation direction of the plane's normal in the vertical direction
         angle_vector = Vector.cross(ref_side.normal, plane.normal)
-        angle = angle_vectors_signed(ref_side.xaxis, angle_vector, ref_side.normal, deg=True)
-        if orientation == OrientationType.START:
-            return 180 - abs(angle)  # get the other side of the angle
-        else:
-            return abs(angle)
+        return abs(angle_vectors_signed(ref_side.xaxis, angle_vector, ref_side.normal, deg=True))
+
+    # @staticmethod
+    # def _calculate_inclination(ref_side, plane, orientation):
+    #     # vector rotation direction of the plane's normal in the horizontal direction
+    #     inclination_vector = Vector.cross(ref_side.yaxis, plane.normal)
+    #     inclination = angle_vectors_signed(ref_side.xaxis, inclination_vector, ref_side.yaxis, deg=True)
+    #     if orientation == OrientationType.START:
+    #         return 180 - abs(inclination)  # get the other side of the angle
+    #     else:
+    #         return abs(inclination)
 
     @staticmethod
-    def _calculate_inclination(ref_side, plane, orientation):
-        # vector rotation direction of the plane's normal in the horizontal direction
-        inclination_vector = Vector.cross(ref_side.yaxis, plane.normal)
-        inclination = angle_vectors_signed(ref_side.xaxis, inclination_vector, ref_side.yaxis, deg=True)
-        if orientation == OrientationType.START:
-            return 180 - abs(inclination)  # get the other side of the angle
-        else:
-            return abs(inclination)
+    def _calculate_length(planes, ref_side, ref_edge, depth):
+        # calculate the length of the lap from the intersection points of the planes with the reference edge
+        offseted_ref_edge = ref_edge.translated(-ref_side.normal*depth)
+        ref_edges = ref_edge, offseted_ref_edge
+
+        intersection_pts = [Point(*intersection_line_plane(ref_edge, plane)) for ref_edge, plane in zip(ref_edges, planes)]
+        vector = Vector.from_start_end(*intersection_pts)
+        return abs(vector.dot(ref_side.xaxis))
 
     ########################################################################
     # Methods
@@ -483,7 +424,6 @@ class Lap(BTLxProcess):
                 geometry,
                 "The lap volume does not intersect with the beam geometry.",
             )
-        # return geometry
 
     def volume_from_params_and_beam(self, beam):
         """Calculates the volume of the cut from the machining parameters in this instance and the given beam
@@ -510,8 +450,11 @@ class Lap(BTLxProcess):
         box = Box(xsize=self.length, ysize=self.width, zsize=self.depth, frame=box_frame)
         box.translate(box_frame.xaxis * (self.length / 2) + box_frame.yaxis * (-self.width / 2) + box_frame.zaxis * (self.depth / 2))
 
-        # if self.machining_limits["FaceLimitedFront"] == "yes" or self.machining_limits["FaceLimitedBack"] == "yes":
-        #     box.scale(1.5,1,1)
+        if self.orientation == OrientationType.START:
+            box.translate(box_frame.xaxis * -self.length)
+
+        if self.machining_limits["FaceLimitedFront"] == "no" or self.machining_limits["FaceLimitedBack"] == "no":
+            box.ysize = box.ysize*2
 
         return Brep.from_box(box)
 
